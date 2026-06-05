@@ -1066,6 +1066,33 @@
       );
     }
 
+    async function waitForAnyImage(images) {
+      const pending = images.filter((img) => !(img.complete && img.naturalWidth > 0 && img.naturalHeight > 0));
+      if (pending.length === 0) {
+        return;
+      }
+
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) {
+            return;
+          }
+          done = true;
+          pending.forEach((img) => {
+            img.removeEventListener('load', finish);
+            img.removeEventListener('error', finish);
+          });
+          resolve();
+        };
+
+        pending.forEach((img) => {
+          img.addEventListener('load', finish, { once: true });
+          img.addEventListener('error', finish, { once: true });
+        });
+      });
+    }
+
     async function fitImagesToViewport() {
       const images = Array.from(app.querySelectorAll('img'));
       if (images.length === 0) {
@@ -1133,29 +1160,22 @@
           return;
         }
 
-        const imageUrls = files.map((file) => `/images/${encodeURIComponent(file)}`);
-        await Promise.all(
-          imageUrls.map(
-            (url) =>
-              new Promise((resolve) => {
-                const preloadImage = new Image();
-                preloadImage.onload = resolve;
-                preloadImage.onerror = resolve;
-                preloadImage.src = url;
-              })
-          )
-        );
-
         app.className = 'column is-gallery-preload';
         app.innerHTML = files
           .map((file) => `\n            <section class="image-card">\n              <img src="/images/${encodeURIComponent(file)}" alt="${file}" data-file="${file}" loading="lazy" />\n            </section>\n          `)
           .join('');
 
-        await fitImagesToViewport();
+        const renderedImages = Array.from(app.querySelectorAll('img'));
+        await Promise.race([
+          waitForAnyImage(renderedImages),
+          new Promise((resolve) => setTimeout(resolve, 1200))
+        ]);
 
         requestAnimationFrame(() => {
           app.classList.remove('is-gallery-preload');
         });
+
+        fitImagesToViewport();
       } catch (error) {
         renderMessage('error', `<h2>エラー</h2><p>${error.message}</p>`);
       }
