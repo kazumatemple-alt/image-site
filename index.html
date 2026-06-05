@@ -1113,12 +1113,17 @@
 
     async function loadImages() {
       try {
-        const response = await fetch('/api/images');
-        if (!response.ok) {
-          throw new Error('画像一覧の取得に失敗しました');
+        let files;
+        try {
+          const response = await fetch('/api/images', { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error(`images api status: ${response.status}`);
+          }
+          files = await response.json();
+        } catch (apiError) {
+          // Fallback for environments where /api/images is not available.
+          files = Object.keys(artworkDetails).sort((a, b) => a.localeCompare(b, 'ja'));
         }
-
-        const files = await response.json();
 
         if (!Array.isArray(files) || files.length === 0) {
           renderMessage(
