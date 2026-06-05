@@ -305,7 +305,7 @@
       transition: clip-path 440ms ease-in, opacity 600ms ease-in;
     }
     .column.is-gallery-preload .image-card {
-      opacity: 0.2;
+      opacity: 0;
     }
     .column.is-gallery-preload {
       border-left-color: rgba(255, 106, 0, 0);
@@ -1048,7 +1048,7 @@
     async function waitForImages(images) {
       await Promise.all(
         images.map((img) => {
-          if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+          if (img.complete) {
             return Promise.resolve();
           }
 
@@ -1064,33 +1064,6 @@
           });
         })
       );
-    }
-
-    async function waitForAnyImage(images) {
-      const pending = images.filter((img) => !(img.complete && img.naturalWidth > 0 && img.naturalHeight > 0));
-      if (pending.length === 0) {
-        return;
-      }
-
-      await new Promise((resolve) => {
-        let done = false;
-        const finish = () => {
-          if (done) {
-            return;
-          }
-          done = true;
-          pending.forEach((img) => {
-            img.removeEventListener('load', finish);
-            img.removeEventListener('error', finish);
-          });
-          resolve();
-        };
-
-        pending.forEach((img) => {
-          img.addEventListener('load', finish, { once: true });
-          img.addEventListener('error', finish, { once: true });
-        });
-      });
     }
 
     async function fitImagesToViewport() {
@@ -1166,16 +1139,13 @@
           .join('');
 
         const renderedImages = Array.from(app.querySelectorAll('img'));
-        await Promise.race([
-          waitForAnyImage(renderedImages),
-          new Promise((resolve) => setTimeout(resolve, 1200))
-        ]);
+        await waitForImages(renderedImages);
+
+        await fitImagesToViewport();
 
         requestAnimationFrame(() => {
           app.classList.remove('is-gallery-preload');
         });
-
-        fitImagesToViewport();
       } catch (error) {
         renderMessage('error', `<h2>エラー</h2><p>${error.message}</p>`);
       }
