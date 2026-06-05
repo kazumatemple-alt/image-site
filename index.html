@@ -1,0 +1,1285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>画像縦並び</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --image-width: 75pt;
+      --column-shift-distance: 12vw;
+      --about-line-travel: 0px;
+      --about-line-join-travel: 0px;
+      --detail-panel-width: min(44vw, 620px);
+      --detail-gap-from-column: 40pt;
+      --detail-panel-bottom: calc(24pt + 190px);
+      --detail-image-height: 72vh;
+    }
+
+    * { box-sizing: border-box; }
+    ::selection {
+      background: #ff6a00;
+      color: #000000;
+    }
+    ::-moz-selection {
+      background: #ff6a00;
+      color: #000000;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #ffffff;
+      font-family: "IBM Sans", "IBM Plex Sans", sans-serif;
+      font-size: 11pt;
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      padding: 0;
+    }
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 24px 48px;
+      font-size: 11pt;
+      line-height: 1;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 500ms ease-in;
+    }
+    .topbar.is-about-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .topbar-left,
+    .topbar-right {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 48px;
+      white-space: nowrap;
+      pointer-events: auto;
+    }
+    .topbar-left {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 0;
+      transform: translateY(0);
+    }
+    .topbar-right span {
+      display: inline-block;
+      user-select: none;
+      cursor: default;
+    }
+    .topbar-name,
+    .contact-panel a {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #worksButton {
+      cursor: pointer;
+    }
+    #aboutButton {
+      cursor: pointer;
+    }
+    #contactButton {
+      cursor: pointer;
+    }
+    #contactButton.is-locked {
+      cursor: default;
+      pointer-events: none;
+      opacity: 0.45;
+    }
+    .contact-panel {
+      visibility: hidden;
+      opacity: 0;
+      transform: translateY(-4px);
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      font-size: 11pt;
+      line-height: 1.15;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms;
+    }
+    .contact-panel.is-visible {
+      visibility: visible;
+      display: flex;
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+      transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 0s;
+    }
+    .contact-panel.is-nudging {
+      animation: contactNudgeX 340ms ease-in-out;
+    }
+    .contact-panel.is-collapsing {
+      pointer-events: none;
+    }
+    .contact-char {
+      display: inline-block;
+      white-space: pre;
+    }
+    .contact-panel.is-collapsing .contact-char {
+      animation: contactCharFall var(--contact-fall-duration, 2200ms) cubic-bezier(0.2, 0.7, 0.2, 1) var(--contact-fall-delay, 0ms) forwards;
+      will-change: transform, opacity;
+    }
+    @keyframes contactNudgeX {
+      0% { transform: translateX(0); }
+      20% { transform: translateX(-7px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes contactCharFall {
+      0% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) rotate(0deg);
+      }
+      16% {
+        opacity: 1;
+        transform: translate3d(var(--contact-burst-x, 0px), var(--contact-burst-y, -12px), 0)
+          rotate(calc(var(--contact-fall-rotate, 0deg) * 0.18)) scale(1.03);
+      }
+      78% {
+        opacity: 1;
+        transform: translate3d(calc(var(--contact-fall-x, 0px) * 0.78), 80vh, 0)
+          rotate(calc(var(--contact-fall-rotate, 0deg) * 0.78));
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(var(--contact-fall-x, 0px), 120vh, 0) rotate(var(--contact-fall-rotate, 0deg));
+      }
+    }
+    .contact-panel a {
+      color: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .contact-panel .contact-email {
+      display: inline-block;
+      color: inherit;
+      text-decoration: none;
+      cursor: text;
+      user-select: text;
+      -webkit-user-select: text;
+      padding: 3px 2px;
+      margin: -3px -2px;
+    }
+    .contact-panel a:hover {
+      text-decoration: none;
+    }
+    .column {
+      width: var(--image-width);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 7pt;
+      padding: 20pt 0;
+      border-left: 2pt solid rgba(255, 106, 0, 1);
+      border-right: 2pt solid rgba(255, 106, 0, 1);
+      overflow: hidden;
+      position: relative;
+      transition: transform 560ms cubic-bezier(0.37, 0, 0.63, 1), border-color 0ms linear;
+      will-change: transform;
+    }
+    .column::before,
+    .column::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: var(--about-line-width, 2pt);
+      background: #ff6a00;
+      opacity: 0;
+      transition: left 440ms ease-in, right 440ms ease-in, opacity 160ms linear;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .column::before {
+      left: 0;
+      transform: none;
+    }
+    .column::after {
+      right: 0;
+      transform: none;
+    }
+    .column.is-about-closing,
+    .column.is-about-joined,
+    .column.is-about-fading,
+    .column.is-about-closed {
+      border-left-color: transparent;
+      border-right-color: transparent;
+      transition-duration: 340ms, 0ms;
+      transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1), linear;
+    }
+    .column.is-about-prep::before,
+    .column.is-about-prep::after {
+      opacity: 1;
+      transition: none;
+    }
+    .column.is-about-closing::before,
+    .column.is-about-closing::after {
+      opacity: 1;
+      transition: left 440ms ease-in, right 440ms ease-in, opacity 160ms linear;
+    }
+    .column.is-about-closing::before {
+      left: calc(50% - (var(--about-line-width, 2pt) / 2));
+    }
+    .column.is-about-closing::after {
+      right: calc(50% - (var(--about-line-width, 2pt) / 2));
+    }
+    .column.is-about-joined::before {
+      opacity: 1;
+      left: calc(50% - (var(--about-line-width, 2pt) / 2));
+      transition: left 0ms linear, opacity 0ms linear;
+    }
+    .column.is-about-joined::after {
+      opacity: 1;
+      right: calc(50% - (var(--about-line-width, 2pt) / 2));
+      transition: right 0ms linear, opacity 0ms linear;
+    }
+    .column.is-about-fading::before,
+    .column.is-about-fading::after {
+      opacity: 0;
+      transition: opacity 500ms ease-in;
+    }
+    .column.is-about-closed::before,
+    .column.is-about-closed::after {
+      opacity: 0;
+      visibility: hidden;
+      transition: visibility 0ms linear;
+    }
+    .column.is-returning-home {
+      border-left-color: rgba(255, 106, 0, 0);
+      border-right-color: rgba(255, 106, 0, 0);
+    }
+    .column.is-returning-home::before,
+    .column.is-returning-home::after {
+      opacity: 0 !important;
+      visibility: hidden;
+      left: 0;
+      right: 0;
+      transition: none;
+    }
+    .column.is-returning-home .image-card {
+      opacity: 0;
+      clip-path: inset(0 0 0 0);
+      transition: opacity 600ms ease-in;
+    }
+    .column.is-shifted-left {
+      transform: translateX(calc(-1 * var(--column-shift-distance)));
+    }
+    .column.is-detail-open {
+      border-left-color: rgba(128, 128, 128, 0.5);
+      border-right-color: rgba(128, 128, 128, 0.5);
+    }
+    .column.is-detail-open .image-card {
+      opacity: 0.5;
+      transition: opacity 520ms ease-in-out;
+    }
+    .image-card {
+      width: 100%;
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+      opacity: 1;
+      clip-path: inset(0 0 0 0);
+      transition: opacity 600ms ease-in, clip-path 900ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .column.is-about-closing .image-card {
+      clip-path: inset(0 50% 0 50%);
+      transition: clip-path 440ms ease-in, opacity 600ms ease-in;
+    }
+    .column.is-gallery-preload .image-card {
+      opacity: 0.2;
+    }
+    .column.is-gallery-preload {
+      border-left-color: rgba(255, 106, 0, 0);
+      border-right-color: rgba(255, 106, 0, 0);
+    }
+    .image-card img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 0;
+      object-fit: contain;
+      cursor: pointer;
+    }
+    .detail-panel {
+      position: fixed;
+      bottom: var(--detail-panel-bottom);
+      left: 0;
+      width: var(--detail-panel-width);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 300ms ease-in-out;
+      z-index: 8;
+      overflow: visible;
+    }
+    .detail-panel.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .detail-image-wrap {
+      width: 100%;
+      height: var(--detail-image-height);
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start;
+      background: transparent;
+      margin-bottom: 0;
+      overflow: hidden;
+    }
+    .detail-image {
+      width: auto;
+      max-width: 100%;
+      max-height: 100%;
+      height: auto;
+      display: block;
+      object-fit: contain;
+      object-position: left bottom;
+    }
+    .detail-text {
+      position: absolute;
+      top: calc(100% + 12px);
+      left: 0;
+      width: 100%;
+      color: #1e1e1e;
+      font-size: 9pt;
+      line-height: 1.25;
+    }
+    .detail-title {
+      font-style: italic;
+      font-weight: 600;
+      margin: 0;
+      line-height: 1;
+    }
+    .detail-description {
+      margin: 0;
+      line-height: 1;
+      white-space: pre-line;
+    }
+    .about-text {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      width: min(78vw, 52ch);
+      opacity: 0;
+      pointer-events: none;
+      color: #1e1e1e;
+      font-family: "IBM Sans", "IBM Plex Sans", sans-serif;
+      font-size: 10pt;
+      line-height: 1.42;
+      text-align: justify;
+      text-justify: inter-word;
+      hyphens: auto;
+      -webkit-hyphens: auto;
+      text-wrap: pretty;
+      transition: opacity 260ms ease-in;
+      z-index: 7;
+      padding-right: 20px;
+    }
+    .about-text.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+      user-select: text;
+    }
+    .about-text.is-hiding {
+      opacity: 0;
+      pointer-events: none;
+      user-select: none;
+      transition: opacity 600ms ease-in;
+    }
+    .about-text p {
+      margin: 0 0 10px;
+    }
+    .about-text p:last-child {
+      margin-bottom: 0;
+    }
+    .about-text::selection,
+    .about-text *::selection {
+      background: #ff6a00;
+      color: #000000;
+    }
+    .about-text::-moz-selection,
+    .about-text *::-moz-selection {
+      background: #ff6a00;
+      color: #000000;
+    }
+    .about-close {
+      position: absolute;
+      top: 0;
+      right: 0;
+      display: inline-block;
+      width: auto;
+      text-align: right;
+      margin: 0;
+      padding: 0 0 0 8px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-family: "IBM Sans", "IBM Plex Sans", sans-serif;
+      font-size: 10pt;
+      line-height: 1;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .cv-text {
+      width: min(90vw, 860px);
+      text-align: left;
+      text-justify: auto;
+      line-height: 1.34;
+    }
+    .cv-grid {
+      display: grid;
+      max-width: 640px;
+      margin: 0 auto;
+      gap: 40px;
+    }
+    .cv-row {
+      display: grid;
+      grid-template-columns: minmax(90px, 110px) minmax(0, 1fr);
+      column-gap: 28px;
+      align-items: start;
+    }
+    .cv-label {
+      margin: 0;
+      font-size: 11pt;
+      font-weight: 400;
+      line-height: 1.25;
+      user-select: text;
+    }
+    .cv-content p {
+      margin: 0 0 14px;
+      line-height: 1.25;
+    }
+    .cv-content p:last-child {
+      margin-bottom: 0;
+    }
+    .cv-year {
+      display: inline-block;
+      margin-bottom: 2px;
+      padding-bottom: 1px;
+      border-bottom: 1px solid currentColor;
+    }
+    @media (max-width: 720px) {
+      .cv-text {
+        width: min(92vw, 560px);
+      }
+      .cv-row {
+        grid-template-columns: 1fr;
+        row-gap: 8px;
+      }
+    }
+    .empty, .error {
+      text-align: center;
+      color: #333;
+      line-height: 1.7;
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      width: min(92vw, 900px);
+    }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <header class="topbar" aria-label="サイト上部テキスト">
+    <div class="topbar-left">
+      <span class="topbar-name">Kazuma Watanabe</span>
+      <div id="contactPanel" class="contact-panel" aria-label="連絡先">
+        <span class="contact-email">hello@kazumawatanabe.studio</span>
+        <a href="https://www.instagram.com/salt.tank/" target="_blank" rel="noreferrer">Instagram</a>
+        <a href="https://soundcloud.com/derive2001" target="_blank" rel="noreferrer">SoundCloud</a>
+      </div>
+    </div>
+    <nav class="topbar-right" aria-label="上部メニュー">
+      <span id="worksButton" role="button" tabindex="0">Works</span>
+      <span id="aboutButton" role="button" tabindex="0">About</span>
+      <span id="cvButton" role="button" tabindex="0">CV</span>
+      <span id="contactButton" role="button" tabindex="0">Contact</span>
+    </nav>
+  </header>
+
+  <main id="app" class="column is-gallery-preload" aria-live="polite"></main>
+
+  <section id="aboutText" class="about-text" aria-live="polite" aria-label="About text" lang="en">
+    <button id="aboutCloseButton" class="about-close" aria-label="Close about">×</button>
+    <p>Kazuma Watanabe is an artist and designer from Tokyo, based in London. His practice moves across sculpture, space, graphics, and sound.</p>
+    <p>He understands the city as a field of tension, where order and noise, rationality and contingency confront one another. His work investigates the affective operations embedded within contemporary urban structures, exploring forms of emotional depth including the contemporary sublime, as well as a sense of absolute belonging in which one does not need to perform, prove, or justify oneself.</p>
+    <p>His works function as phenomenological apparatuses that shift through their encounter with the viewer. They remain open to fluctuations in perception, operating as layered fields rather than singular statements.</p>
+    <p>He is also interested in how interventions into space can transform perception and generate emotional depth. Through objects, minimal gestures, and material operations, he explores the relationship between body, object, and environment, treating spatial and material constraints as active agents that shape experience.</p>
+    <p>For Watanabe, making is also a way of constructing a place for himself within a world where self-recognition has become increasingly thin. Through his work, he attempts to perceive and make perceptible the tensions in which urban rationality, noise, weathering, and accidental interventions coexist.</p>
+  </section>
+
+  <section id="cvText" class="about-text cv-text" aria-live="polite" aria-label="CV text" lang="en">
+    <button id="cvCloseButton" class="about-close" aria-label="Close CV">×</button>
+    <div class="cv-grid">
+      <div class="cv-row">
+        <h3 class="cv-label">Education</h3>
+        <div class="cv-content">
+          <p><span class="cv-year">2023-2026</span><br>BA Fine Art, Camberwell College of Arts, University of the Arts London, London</p>
+        </div>
+      </div>
+      <div class="cv-row">
+        <h3 class="cv-label">Exhibition</h3>
+        <div class="cv-content">
+          <p><span class="cv-year">2026</span><br>Degree Show, Camberwell Exhibition Space, London</p>
+          <p>BA Fine Art Group Exhibition, Southwark Park Galleries, London</p>
+          <p><span class="cv-year">2025</span><br>Arcadia, Studio 1.1, London</p>
+          <p>Pinch Me, hARTslane, London</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside id="detailPanel" class="detail-panel" aria-live="polite">
+    <div class="detail-image-wrap">
+      <img id="detailImage" class="detail-image" alt="作品画像" />
+    </div>
+    <div class="detail-text">
+      <p id="detailTitle" class="detail-title"></p>
+      <p id="detailDescription" class="detail-description"></p>
+    </div>
+  </aside>
+
+  <script>
+    const app = document.getElementById('app');
+    const topbar = document.querySelector('.topbar');
+    const detailPanel = document.getElementById('detailPanel');
+    const detailImageWrap = document.querySelector('.detail-image-wrap');
+    const detailImage = document.getElementById('detailImage');
+    const detailTitle = document.getElementById('detailTitle');
+    const detailDescription = document.getElementById('detailDescription');
+    const aboutText = document.getElementById('aboutText');
+    const aboutCloseButton = document.getElementById('aboutCloseButton');
+    const aboutButton = document.getElementById('aboutButton');
+    const cvText = document.getElementById('cvText');
+    const cvCloseButton = document.getElementById('cvCloseButton');
+    const cvButton = document.getElementById('cvButton');
+    const contactPanel = document.getElementById('contactPanel');
+    const contactButton = document.getElementById('contactButton');
+    const worksButton = document.getElementById('worksButton');
+    let activeOverlay = null;
+    let aboutJoinedTimer;
+    let aboutFadeTimer;
+    let aboutClosedTimer;
+    let aboutTextTimer;
+    let aboutHideTimer;
+    let aboutTextPrepared = false;
+    let contactClickStreak = 0;
+    let contactClickTimer;
+    let contactCollapseTimer;
+    let contactLocked = false;
+    let contactCharsPrepared = false;
+    const initialColumnWidth = app.getBoundingClientRect().width;
+    const artworkDetails = {
+      'Work1.jpg': {
+        title: 'In the Air Tonight',
+        description: '2026\nBirchwood, Automotive Paint on PLA, Steel Wire\n920 × 920 × 1100\nUnique\n\nExhibited at the Graduation Exhibition, Camberwell College of Arts, London, 2026',
+        detailSize: { width: 450, height: 302 }
+      },
+      'Work2.jpg': {
+        title: 'Untitled',
+        description: '2025\nPlywood, PLA, found objects\n820 × 650 × 40\nUnique\n\nExhibited in Arcadia, Studio1.1, UK, 2025',
+        detailSize: { width: 361, height: 302 }
+      },
+      'Work3.jpg': {
+        title: 'Coexist',
+        description: '2024\nSteel, PLA, Cotton Thread, Ratchet Straps\n1900 × 1200 × 200\nUnique\n\nStudio View',
+        detailSize: { width: 288, height: 334 }
+      },
+      'Work4.jpg': {
+        title: 'Untitled(Divider)',
+        description: '2026\nAutomotive Paint on PLA\n310 × 160 × 80\nUnique\n\nStudio View',
+        detailSize: { width: 405, height: 292 }
+      },
+      'Work5.jpg': {
+        title: 'Landing',
+        description: '2026\nAutomotive paint on PLA\n700 × 2400 × 110 mm\nUnique\n\nExhibited at Southwark Park Galleries, London',
+        detailSize: { width: 480, height: 288 }
+      },
+      'Work6.jpg': {
+        title: 'Untitled(Candy Red)',
+        description: '2026\nAutomotive Paint on PLA, Perforated Steel\n310 × 160 × 80\nUnique\n\nStudio View',
+        detailSize: { width: 421, height: 288 }
+      }
+    };
+
+    function getArtworkMeta(fileName) {
+      return artworkDetails[fileName] || {
+        title: fileName.replace(/\.[^.]+$/, ''),
+        description: '2026\nMixed Media\nUnique'
+      };
+    }
+
+    function cssLengthToPixels(lengthValue) {
+      const probe = document.createElement('div');
+      probe.style.position = 'absolute';
+      probe.style.visibility = 'hidden';
+      probe.style.width = lengthValue;
+      document.body.appendChild(probe);
+      const pixels = probe.getBoundingClientRect().width;
+      probe.remove();
+      return pixels;
+    }
+
+    function updateDetailPanelPosition(options = {}) {
+      const { predictShiftedColumn = false } = options;
+      const rootStyles = window.getComputedStyle(document.documentElement);
+      const gapValue = rootStyles.getPropertyValue('--detail-gap-from-column').trim() || '10pt';
+      const gapPixels = cssLengthToPixels(gapValue);
+      const appRect = app.getBoundingClientRect();
+      const shiftValue = rootStyles.getPropertyValue('--column-shift-distance').trim() || '0px';
+      const shiftPixels = cssLengthToPixels(shiftValue);
+      const shiftedRight = predictShiftedColumn ? appRect.right - shiftPixels : appRect.right;
+      const panelWidth = detailPanel.getBoundingClientRect().width;
+      const viewportPadding = 16;
+      const preferredLeft = shiftedRight + gapPixels;
+      const maxLeft = window.innerWidth - panelWidth - viewportPadding;
+      const clampedLeft = Math.max(viewportPadding, Math.min(preferredLeft, maxLeft));
+
+      detailPanel.style.left = `${clampedLeft}px`;
+    }
+
+    function openDetail(imageElement) {
+      clearTimeout(aboutJoinedTimer);
+      clearTimeout(aboutFadeTimer);
+      clearTimeout(aboutClosedTimer);
+      clearTimeout(aboutTextTimer);
+      clearTimeout(aboutHideTimer);
+      app.classList.remove('is-about-prep', 'is-about-closing', 'is-about-joined', 'is-about-fading', 'is-about-closed');
+      app.classList.remove('is-returning-home');
+      aboutText.classList.remove('is-hiding');
+      aboutText.classList.remove('is-visible');
+      cvText.classList.remove('is-hiding');
+      cvText.classList.remove('is-visible');
+      activeOverlay = null;
+      topbar.classList.remove('is-about-hidden');
+      const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
+      const imageSrc = imageElement.getAttribute('src');
+      const meta = getArtworkMeta(fileName);
+
+      detailImage.src = imageSrc;
+      detailImage.alt = fileName;
+      detailImageWrap.style.width = '';
+      detailImage.style.marginLeft = '';
+      detailImage.style.objectFit = '';
+      if (meta.detailSize && Number.isFinite(meta.detailSize.width) && Number.isFinite(meta.detailSize.height)) {
+        detailImage.style.width = `${meta.detailSize.width}px`;
+        detailImage.style.height = `${meta.detailSize.height}px`;
+      } else {
+        detailImage.style.width = '';
+        detailImage.style.height = '';
+      }
+
+      if (meta.trimX && Number.isFinite(meta.trimX) && meta.trimX > 0 && meta.detailSize) {
+        const trimX = meta.trimX;
+        detailImageWrap.style.width = `${meta.detailSize.width}px`;
+        detailImage.style.width = `${meta.detailSize.width + trimX * 2}px`;
+        detailImage.style.height = `${meta.detailSize.height}px`;
+        detailImage.style.marginLeft = `${-trimX}px`;
+        detailImage.style.objectFit = 'cover';
+      }
+      detailTitle.textContent = meta.title;
+      detailDescription.textContent = meta.description;
+
+      const needsPredictivePosition = !app.classList.contains('is-shifted-left');
+      updateDetailPanelPosition({ predictShiftedColumn: needsPredictivePosition });
+      detailPanel.classList.remove('is-visible');
+      app.classList.add('is-shifted-left');
+      app.classList.add('is-detail-open');
+
+      if (!needsPredictivePosition) {
+        detailPanel.classList.add('is-visible');
+        return;
+      }
+
+      const showPanelAfterShift = (event) => {
+        if (event.target !== app || event.propertyName !== 'transform') {
+          return;
+        }
+        app.removeEventListener('transitionend', showPanelAfterShift);
+        if (app.classList.contains('is-detail-open')) {
+          detailPanel.classList.add('is-visible');
+        }
+      };
+
+      app.addEventListener('transitionend', showPanelAfterShift);
+    }
+
+    function prepareAboutTextForAnalysis() {
+      if (aboutTextPrepared) {
+        return;
+      }
+
+      const paragraphs = aboutText.querySelectorAll('p');
+      paragraphs.forEach((paragraph) => {
+        const parts = paragraph.textContent.split(/(\s+)/);
+        paragraph.textContent = '';
+        parts.forEach((part) => {
+          if (!part) {
+            return;
+          }
+          if (/^\s+$/.test(part)) {
+            paragraph.appendChild(document.createTextNode(part));
+            return;
+          }
+          const word = document.createElement('span');
+          word.className = 'about-word';
+          word.textContent = part;
+          paragraph.appendChild(word);
+        });
+      });
+
+      aboutTextPrepared = true;
+    }
+
+    function calculateRiverScore() {
+      const words = Array.from(aboutText.querySelectorAll('.about-word'));
+      if (words.length < 2) {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      const linesMap = new Map();
+      words.forEach((word) => {
+        const rect = word.getBoundingClientRect();
+        const topKey = Math.round(rect.top);
+        if (!linesMap.has(topKey)) {
+          linesMap.set(topKey, []);
+        }
+        linesMap.get(topKey).push(rect);
+      });
+
+      const lines = Array.from(linesMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, rects]) => rects.sort((a, b) => a.left - b.left));
+
+      let score = 0;
+      const largeGapCentersByLine = [];
+
+      lines.forEach((rects) => {
+        if (rects.length < 3) {
+          largeGapCentersByLine.push([]);
+          return;
+        }
+
+        const gaps = [];
+        for (let i = 0; i < rects.length - 1; i += 1) {
+          const gap = rects[i + 1].left - rects[i].right;
+          if (gap > 0) {
+            gaps.push({ gap, x: (rects[i].right + rects[i + 1].left) / 2 });
+          }
+        }
+
+        if (gaps.length === 0) {
+          largeGapCentersByLine.push([]);
+          return;
+        }
+
+        const avgGap = gaps.reduce((sum, item) => sum + item.gap, 0) / gaps.length;
+        const threshold = Math.max(12, avgGap * 1.55);
+        const large = gaps.filter((item) => item.gap >= threshold).map((item) => item.x);
+        largeGapCentersByLine.push(large);
+        score += large.length;
+      });
+
+      for (let i = 0; i < largeGapCentersByLine.length - 1; i += 1) {
+        const current = largeGapCentersByLine[i];
+        const next = largeGapCentersByLine[i + 1];
+        current.forEach((x1) => {
+          if (next.some((x2) => Math.abs(x1 - x2) < 14)) {
+            score += 3;
+          }
+        });
+      }
+
+      return score;
+    }
+
+    function optimizeAboutTextLayout() {
+      prepareAboutTextForAnalysis();
+
+      const widthCandidates = [48, 50, 52, 54, 56];
+      let bestWidth = 52;
+      let bestScore = Number.POSITIVE_INFINITY;
+
+      widthCandidates.forEach((candidate) => {
+        aboutText.style.width = `min(78vw, ${candidate}ch)`;
+        const score = calculateRiverScore();
+        if (score < bestScore) {
+          bestScore = score;
+          bestWidth = candidate;
+        }
+      });
+
+      aboutText.style.width = `min(78vw, ${bestWidth}ch)`;
+    }
+
+    function switchDetailOnHover(imageElement) {
+      if (!app.classList.contains('is-detail-open')) {
+        return;
+      }
+
+      const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
+      if (detailImage.alt === fileName) {
+        return;
+      }
+
+      openDetail(imageElement);
+    }
+
+    function closeDetail() {
+      app.classList.remove('is-shifted-left');
+      app.classList.remove('is-detail-open');
+      detailPanel.classList.remove('is-visible');
+    }
+
+    function toggleContactPanel() {
+      if (contactLocked) {
+        return;
+      }
+
+      clearTimeout(contactClickTimer);
+      contactClickStreak += 1;
+
+      if (contactClickStreak >= 10) {
+        contactClickStreak = 0;
+        contactLocked = true;
+        contactButton.classList.add('is-locked');
+        contactButton.setAttribute('aria-disabled', 'true');
+        clearTimeout(contactCollapseTimer);
+        prepareContactChars();
+        randomizeContactCharFall();
+        contactPanel.classList.add('is-visible');
+        contactPanel.classList.remove('is-nudging');
+        contactPanel.classList.remove('is-collapsing');
+        contactPanel.getBoundingClientRect();
+        contactPanel.classList.add('is-collapsing');
+        contactCollapseTimer = setTimeout(() => {
+          contactPanel.classList.remove('is-collapsing');
+          contactPanel.classList.remove('is-visible');
+        }, 3400);
+        return;
+      }
+
+      contactClickTimer = setTimeout(() => {
+        contactClickStreak = 0;
+      }, 1600);
+
+      if (contactPanel.classList.contains('is-visible')) {
+        contactPanel.classList.remove('is-nudging');
+        contactPanel.classList.remove('is-collapsing');
+        contactPanel.getBoundingClientRect();
+        contactPanel.classList.add('is-nudging');
+        return;
+      }
+
+      contactPanel.classList.remove('is-collapsing');
+      contactPanel.classList.add('is-visible');
+    }
+
+    function prepareContactChars() {
+      if (contactCharsPrepared) {
+        return;
+      }
+
+      const targets = Array.from(contactPanel.children);
+      targets.forEach((target) => {
+        const text = target.textContent || '';
+        target.textContent = '';
+        Array.from(text).forEach((char) => {
+          const span = document.createElement('span');
+          span.className = 'contact-char';
+          span.textContent = char === ' ' ? '\u00A0' : char;
+          target.appendChild(span);
+        });
+      });
+
+      contactCharsPrepared = true;
+    }
+
+    function randomizeContactCharFall() {
+      const chars = contactPanel.querySelectorAll('.contact-char');
+      chars.forEach((char, index) => {
+        const spreadX = (Math.random() * 2 - 1) * 130;
+        const burstX = (Math.random() * 2 - 1) * 20;
+        const burstY = -(8 + Math.random() * 12);
+        const rotate = (Math.random() * 2 - 1) * 65;
+        const delay = Math.floor(index * 8 + Math.random() * 140);
+        const duration = Math.floor(1850 + Math.random() * 900);
+        char.style.setProperty('--contact-fall-x', `${spreadX}px`);
+        char.style.setProperty('--contact-burst-x', `${burstX}px`);
+        char.style.setProperty('--contact-burst-y', `${burstY}px`);
+        char.style.setProperty('--contact-fall-rotate', `${rotate}deg`);
+        char.style.setProperty('--contact-fall-delay', `${delay}ms`);
+        char.style.setProperty('--contact-fall-duration', `${duration}ms`);
+      });
+    }
+
+    function openOverlayEffect(targetOverlay, options = {}) {
+      const { optimizeAbout = false } = options;
+      closeDetail();
+      clearTimeout(aboutJoinedTimer);
+      clearTimeout(aboutFadeTimer);
+      clearTimeout(aboutClosedTimer);
+      clearTimeout(aboutTextTimer);
+      clearTimeout(aboutHideTimer);
+      const halfWidth = app.getBoundingClientRect().width / 2;
+      const computedStyles = window.getComputedStyle(app);
+      const lineWidthRaw = parseFloat(computedStyles.borderLeftWidth) || cssLengthToPixels('2pt');
+      const pixelStep = 1 / Math.max(1, window.devicePixelRatio || 1);
+      const lineWidth = Math.round(lineWidthRaw / pixelStep) * pixelStep;
+      const overlapTravelRaw = Math.max(0, halfWidth - lineWidth / 2);
+      const overlapTravel = Math.round(overlapTravelRaw / pixelStep) * pixelStep;
+      document.documentElement.style.setProperty('--about-line-width', `${lineWidth}px`);
+      document.documentElement.style.setProperty('--about-line-travel', `${overlapTravel}px`);
+      document.documentElement.style.setProperty('--about-line-join-travel', `${overlapTravel}px`);
+      app.classList.remove('is-returning-home');
+      app.classList.remove('is-about-prep');
+      app.classList.remove('is-about-fading');
+      app.classList.remove('is-about-joined');
+      app.classList.remove('is-about-closed');
+      app.classList.remove('is-about-closing');
+      aboutText.classList.remove('is-hiding');
+      aboutText.classList.remove('is-visible');
+      cvText.classList.remove('is-hiding');
+      cvText.classList.remove('is-visible');
+      topbar.classList.remove('is-about-hidden');
+      if (optimizeAbout) {
+        optimizeAboutTextLayout();
+      }
+      app.getBoundingClientRect();
+      activeOverlay = targetOverlay;
+
+      app.classList.add('is-about-prep');
+      requestAnimationFrame(() => {
+        if (activeOverlay !== targetOverlay) {
+          return;
+        }
+
+        app.classList.remove('is-about-prep');
+        app.classList.add('is-about-closing');
+
+        aboutJoinedTimer = setTimeout(() => {
+          if (app.classList.contains('is-about-closing')) {
+            app.classList.add('is-about-joined');
+          }
+        }, 440);
+
+        aboutFadeTimer = setTimeout(() => {
+          if (app.classList.contains('is-about-closing')) {
+            app.classList.add('is-about-fading');
+            topbar.classList.add('is-about-hidden');
+          }
+        }, 840);
+
+        aboutClosedTimer = setTimeout(() => {
+          if (app.classList.contains('is-about-closing')) {
+            app.classList.add('is-about-closed');
+          }
+        }, 1340);
+
+        aboutTextTimer = setTimeout(() => {
+          if (app.classList.contains('is-about-closed') && activeOverlay) {
+            activeOverlay.classList.add('is-visible');
+          }
+        }, 1390);
+      });
+    }
+
+    function openAboutEffect() {
+      openOverlayEffect(aboutText, { optimizeAbout: true });
+    }
+
+    function openCvEffect() {
+      openOverlayEffect(cvText);
+    }
+
+    function closeOverlayEffect() {
+      if (!activeOverlay) {
+        return;
+      }
+      clearTimeout(aboutJoinedTimer);
+      clearTimeout(aboutFadeTimer);
+      clearTimeout(aboutClosedTimer);
+      clearTimeout(aboutTextTimer);
+      clearTimeout(aboutHideTimer);
+      topbar.classList.remove('is-about-hidden');
+      app.classList.add('is-returning-home');
+      activeOverlay.classList.add('is-hiding');
+      app.style.width = '';
+      fitImagesToViewport();
+
+      aboutHideTimer = setTimeout(() => {
+        if (activeOverlay) {
+          activeOverlay.classList.remove('is-visible');
+          activeOverlay.classList.remove('is-hiding');
+        }
+        activeOverlay = null;
+        app.classList.remove('is-about-prep', 'is-about-closing', 'is-about-joined', 'is-about-fading', 'is-about-closed');
+        app.getBoundingClientRect();
+        requestAnimationFrame(() => {
+          app.classList.remove('is-returning-home');
+        });
+      }, 620);
+    }
+
+    function closeAboutEffect() {
+      closeOverlayEffect();
+    }
+
+    async function waitForImages(images) {
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+            return Promise.resolve();
+          }
+
+          return new Promise((resolve) => {
+            const done = () => {
+              img.removeEventListener('load', done);
+              img.removeEventListener('error', done);
+              resolve();
+            };
+
+            img.addEventListener('load', done, { once: true });
+            img.addEventListener('error', done, { once: true });
+          });
+        })
+      );
+    }
+
+    async function fitImagesToViewport() {
+      const images = Array.from(app.querySelectorAll('img'));
+      if (images.length === 0) {
+        return;
+      }
+
+      await waitForImages(images);
+
+      const validImages = images.filter(
+        (img) => Number.isFinite(img.naturalWidth) && Number.isFinite(img.naturalHeight) && img.naturalWidth > 0 && img.naturalHeight > 0
+      );
+
+      if (validImages.length === 0) {
+        return;
+      }
+
+      const styles = window.getComputedStyle(app);
+      const gap = parseFloat(styles.rowGap || styles.gap) || 0;
+      const paddingTop = parseFloat(styles.paddingTop) || 0;
+      const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+      const verticalExtras = paddingTop + paddingBottom + gap * Math.max(validImages.length - 1, 0);
+      const availableHeight = window.innerHeight - verticalExtras;
+
+      if (availableHeight <= 0) {
+        return;
+      }
+
+      const ratioSum = validImages
+        .map((img) => img.naturalHeight / img.naturalWidth)
+        .reduce((sum, ratio) => sum + ratio, 0);
+
+      if (!Number.isFinite(ratioSum) || ratioSum <= 0) {
+        return;
+      }
+
+      const fitWidth = availableHeight / ratioSum;
+      const targetWidth = Math.max(1, Math.min(initialColumnWidth, fitWidth));
+      app.style.width = `${targetWidth}px`;
+    }
+
+    function renderMessage(className, html) {
+      app.className = className;
+      app.innerHTML = html;
+    }
+
+    async function loadImages() {
+      try {
+        const response = await fetch('/api/images');
+        if (!response.ok) {
+          throw new Error('画像一覧の取得に失敗しました');
+        }
+
+        const files = await response.json();
+
+        if (!Array.isArray(files) || files.length === 0) {
+          renderMessage(
+            'empty',
+            '<h2>画像が見つかりません</h2><p><code>images</code> フォルダに画像を追加してください。</p>'
+          );
+          return;
+        }
+
+        const imageUrls = files.map((file) => `/images/${encodeURIComponent(file)}`);
+        await Promise.all(
+          imageUrls.map(
+            (url) =>
+              new Promise((resolve) => {
+                const preloadImage = new Image();
+                preloadImage.onload = resolve;
+                preloadImage.onerror = resolve;
+                preloadImage.src = url;
+              })
+          )
+        );
+
+        app.className = 'column is-gallery-preload';
+        app.innerHTML = files
+          .map((file) => `\n            <section class="image-card">\n              <img src="/images/${encodeURIComponent(file)}" alt="${file}" data-file="${file}" loading="lazy" />\n            </section>\n          `)
+          .join('');
+
+        await fitImagesToViewport();
+
+        requestAnimationFrame(() => {
+          app.classList.remove('is-gallery-preload');
+        });
+      } catch (error) {
+        renderMessage('error', `<h2>エラー</h2><p>${error.message}</p>`);
+      }
+    }
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        fitImagesToViewport();
+        if (app.classList.contains('is-detail-open')) {
+          updateDetailPanelPosition();
+        }
+        if (aboutText.classList.contains('is-visible')) {
+          optimizeAboutTextLayout();
+        }
+      }, 80);
+    });
+
+    loadImages();
+
+    function openWorkByFileName(fileName) {
+      const targetImage = app.querySelector(`#app img[data-file="${CSS.escape(fileName)}"]`);
+      if (!targetImage) {
+        return;
+      }
+
+      openDetail(targetImage);
+    }
+
+    worksButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openWorkByFileName('Work1.jpg');
+    });
+
+    worksButton.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        openWorkByFileName('Work1.jpg');
+      }
+    });
+
+    aboutButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openAboutEffect();
+    });
+
+    aboutButton.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        openAboutEffect();
+      }
+    });
+
+    aboutCloseButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeAboutEffect();
+    });
+
+    cvButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openCvEffect();
+    });
+
+    cvButton.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        openCvEffect();
+      }
+    });
+
+    cvCloseButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeOverlayEffect();
+    });
+
+    aboutText.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+
+    cvText.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+
+    contactButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleContactPanel();
+    });
+
+    contactButton.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleContactPanel();
+      }
+    });
+
+    document.addEventListener('click', (event) => {
+      if (activeOverlay && activeOverlay.classList.contains('is-visible')) {
+        if (!activeOverlay.contains(event.target)) {
+          closeOverlayEffect();
+        }
+        return;
+      }
+
+      const clickedImage = event.target.closest('#app img');
+
+      if (clickedImage) {
+        openDetail(clickedImage);
+        return;
+      }
+
+      if (app.classList.contains('is-detail-open')) {
+        closeDetail();
+      }
+    });
+
+    document.addEventListener('mouseover', (event) => {
+      const hoveredImage = event.target.closest('#app img');
+
+      if (!hoveredImage) {
+        return;
+      }
+
+      switchDetailOnHover(hoveredImage);
+    });
+  </script>
+</body>
+</html>
