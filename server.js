@@ -33,13 +33,21 @@ function sendFile(res, filePath) {
   };
 
   const contentType = contentTypeMap[ext] || 'application/octet-stream';
+  const isImage = IMAGE_EXTENSIONS.has(ext);
+  const cacheControl = isImage
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache';
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Not Found');
       return;
     }
-    res.writeHead(200, { 'Content-Type': contentType });
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': cacheControl
+    });
     res.end(data);
   });
 }

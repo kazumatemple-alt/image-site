@@ -1135,7 +1135,7 @@
 
         app.className = 'column is-gallery-preload';
         app.innerHTML = files
-          .map((file) => `\n            <section class="image-card">\n              <img src="/images/${encodeURIComponent(file)}" alt="${file}" data-file="${file}" loading="lazy" />\n            </section>\n          `)
+          .map((file, index) => `\n            <section class="image-card">\n              <img src="/images/${encodeURIComponent(file)}" alt="${file}" data-file="${file}" loading="eager" fetchpriority="${index === 0 ? 'high' : 'auto'}" />\n            </section>\n          `)
           .join('');
 
         const renderedImages = Array.from(app.querySelectorAll('img'));
