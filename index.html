@@ -297,6 +297,10 @@
       opacity: 0;
       transition: opacity 500ms ease-in;
     }
+    .column.is-about-fading .image-card {
+      opacity: 0;
+      transition: opacity 600ms ease-in;
+    }
     .column.is-about-closed::before,
     .column.is-about-closed::after {
       opacity: 0;
@@ -383,21 +387,29 @@
       -webkit-hyphens: manual;
       padding-right: 0;
     }
+    .detail-overlay-stage {
+      width: min(var(--detail-overlay-stage-width, 360px), 100%);
+      margin: 0 auto;
+    }
     .detail-overlay-media {
       width: 100%;
       height: min(68vh, 680px);
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       margin-bottom: 12px;
     }
     .detail-overlay-image {
       max-width: 100%;
       max-height: 100%;
-      width: auto;
+      width: 100%;
       height: auto;
       object-fit: contain;
+      object-position: left center;
       display: block;
+    }
+    .detail-overlay-caption {
+      width: 100%;
     }
     .detail-overlay-title {
       margin: 0 0 4px;
@@ -462,8 +474,8 @@
       font-family: "IBM Sans", "IBM Plex Sans", sans-serif;
       font-size: 10pt;
       line-height: 1.42;
-      text-align: justify;
-      text-justify: inter-word;
+      text-align: left;
+      text-justify: auto;
       hyphens: auto;
       -webkit-hyphens: auto;
       text-wrap: pretty;
@@ -651,6 +663,9 @@
       .detail-overlay {
         width: min(92vw, 560px);
       }
+      .detail-overlay-stage {
+        width: min(var(--detail-overlay-stage-width, 320px), 100%);
+      }
       .detail-overlay-media {
         height: min(50vh, 360px);
       }
@@ -738,12 +753,14 @@
 
   <section id="detailOverlay" class="about-text detail-overlay" aria-live="polite" aria-label="Artwork detail" lang="en">
     <button id="detailCloseButton" class="about-close" aria-label="Close artwork detail">×</button>
-    <div class="detail-overlay-media">
-      <img id="detailOverlayImage" class="detail-overlay-image" alt="Artwork detail image" />
-    </div>
-    <div class="detail-overlay-caption">
-      <p id="detailOverlayTitle" class="detail-overlay-title"></p>
-      <p id="detailOverlayDescription" class="detail-overlay-description"></p>
+    <div id="detailOverlayStage" class="detail-overlay-stage">
+      <div class="detail-overlay-media">
+        <img id="detailOverlayImage" class="detail-overlay-image" alt="Artwork detail image" />
+      </div>
+      <div class="detail-overlay-caption">
+        <p id="detailOverlayTitle" class="detail-overlay-title"></p>
+        <p id="detailOverlayDescription" class="detail-overlay-description"></p>
+      </div>
     </div>
   </section>
 
@@ -773,6 +790,7 @@
     const cvButton = document.getElementById('cvButton');
     const detailOverlay = document.getElementById('detailOverlay');
     const detailCloseButton = document.getElementById('detailCloseButton');
+    const detailOverlayStage = document.getElementById('detailOverlayStage');
     const detailOverlayImage = document.getElementById('detailOverlayImage');
     const detailOverlayTitle = document.getElementById('detailOverlayTitle');
     const detailOverlayDescription = document.getElementById('detailOverlayDescription');
@@ -871,6 +889,55 @@
       detailPanel.style.left = `${clampedLeft}px`;
     }
 
+    function syncDetailOverlayStageWidth() {
+      const viewportMaxWidth = Math.min(window.innerWidth * 0.88, 760);
+      const viewportMaxHeight = Math.min(window.innerHeight * 0.68, 680);
+      const naturalWidth = detailOverlayImage.naturalWidth;
+      const naturalHeight = detailOverlayImage.naturalHeight;
+
+      if (!Number.isFinite(naturalWidth) || !Number.isFinite(naturalHeight) || naturalWidth <= 0 || naturalHeight <= 0) {
+        detailOverlayStage.style.setProperty('--detail-overlay-stage-width', `${Math.round(viewportMaxWidth)}px`);
+        return;
+      }
+
+      const scale = Math.min(1, viewportMaxWidth / naturalWidth, viewportMaxHeight / naturalHeight);
+      const resolvedWidth = Math.max(180, Math.round(naturalWidth * scale));
+      detailOverlayStage.style.setProperty('--detail-overlay-stage-width', `${resolvedWidth}px`);
+    }
+
+    function openDetailOverlayEffect() {
+      closeDetail();
+      clearTimeout(aboutJoinedTimer);
+      clearTimeout(aboutFadeTimer);
+      clearTimeout(aboutClosedTimer);
+      clearTimeout(aboutTextTimer);
+      clearTimeout(aboutHideTimer);
+      app.classList.remove('is-returning-home');
+      app.classList.remove('is-about-prep', 'is-about-closing', 'is-about-joined', 'is-about-closed');
+      app.classList.remove('is-about-fading');
+      aboutText.classList.remove('is-hiding', 'is-visible');
+      cvText.classList.remove('is-hiding', 'is-visible');
+      detailOverlay.classList.remove('is-hiding', 'is-visible');
+      topbar.classList.remove('is-about-hidden');
+      activeOverlay = detailOverlay;
+
+      requestAnimationFrame(() => {
+        if (activeOverlay !== detailOverlay) {
+          return;
+        }
+        app.classList.add('is-about-fading');
+        topbar.classList.add('is-about-hidden');
+
+        aboutClosedTimer = setTimeout(() => {
+          if (activeOverlay !== detailOverlay) {
+            return;
+          }
+          app.classList.add('is-about-closed');
+          detailOverlay.classList.add('is-visible');
+        }, 560);
+      });
+    }
+
     function openDetail(imageElement) {
       const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
       const imageSrc = imageElement.getAttribute('src');
@@ -880,7 +947,20 @@
       detailOverlayImage.alt = fileName;
       detailOverlayTitle.textContent = meta.title;
       detailOverlayDescription.textContent = meta.description;
-      openOverlayEffect(detailOverlay);
+
+      const showOrUpdateOverlay = () => {
+        syncDetailOverlayStageWidth();
+        if (activeOverlay === detailOverlay && detailOverlay.classList.contains('is-visible')) {
+          return;
+        }
+        openDetailOverlayEffect();
+      };
+
+      if (detailOverlayImage.complete) {
+        showOrUpdateOverlay();
+      } else {
+        detailOverlayImage.onload = showOrUpdateOverlay;
+      }
     }
 
     function prepareAboutTextForAnalysis() {
@@ -992,12 +1072,10 @@
       const widthCandidates = compactViewport
         ? [42, 44, 46, 48, 50, 52, 54]
         : [46, 48, 50, 52, 54, 56, 58, 60];
-      const wordSpacingCandidates = [-0.025, -0.015, 0, 0.012, 0.022, 0.032];
-      const letterSpacingCandidates = [-0.01, -0.005, 0, 0.004];
+      const wordSpacingCandidates = [0, 0.004, 0.008, 0.012];
       let best = {
         width: compactViewport ? 48 : 52,
         wordSpacing: 0,
-        letterSpacing: 0,
         score: Number.POSITIVE_INFINITY
       };
 
@@ -1006,28 +1084,24 @@
 
         wordSpacingCandidates.forEach((wordSpacing) => {
           aboutText.style.wordSpacing = `${wordSpacing}em`;
+          aboutText.style.letterSpacing = '0';
+          const riverScore = calculateRiverScore();
+          const spacingPenalty = Math.abs(wordSpacing) * 8;
+          const totalScore = riverScore + spacingPenalty;
 
-          letterSpacingCandidates.forEach((letterSpacing) => {
-            aboutText.style.letterSpacing = `${letterSpacing}em`;
-            const riverScore = calculateRiverScore();
-            const spacingPenalty = Math.abs(wordSpacing) * 10 + Math.abs(letterSpacing) * 24;
-            const totalScore = riverScore + spacingPenalty;
-
-            if (totalScore < best.score) {
-              best = {
-                width,
-                wordSpacing,
-                letterSpacing,
-                score: totalScore
-              };
-            }
-          });
+          if (totalScore < best.score) {
+            best = {
+              width,
+              wordSpacing,
+              score: totalScore
+            };
+          }
         });
       });
 
       aboutText.style.width = compactViewport ? `min(92vw, ${best.width}ch)` : `min(78vw, ${best.width}ch)`;
       aboutText.style.wordSpacing = `${best.wordSpacing}em`;
-      aboutText.style.letterSpacing = `${best.letterSpacing}em`;
+      aboutText.style.letterSpacing = '0';
     }
 
     function switchDetailOnHover(imageElement) {
@@ -1369,6 +1443,9 @@
         }
         if (aboutText.classList.contains('is-visible')) {
           optimizeAboutTextLayout();
+        }
+        if (activeOverlay === detailOverlay && detailOverlay.classList.contains('is-visible')) {
+          syncDetailOverlayStageWidth();
         }
       }, 80);
     });
