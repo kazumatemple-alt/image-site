@@ -923,12 +923,17 @@
 
       let score = 0;
       const largeGapCentersByLine = [];
+      const lineWidths = [];
+      let sparseLineCount = 0;
 
       lines.forEach((rects) => {
         if (rects.length < 3) {
           largeGapCentersByLine.push([]);
+          sparseLineCount += 1;
           return;
         }
+
+        lineWidths.push(rects[rects.length - 1].right - rects[0].left);
 
         const gaps = [];
         for (let i = 0; i < rects.length - 1; i += 1) {
@@ -960,26 +965,60 @@
         });
       }
 
+      if (lineWidths.length > 1) {
+        const avgWidth = lineWidths.reduce((sum, width) => sum + width, 0) / lineWidths.length;
+        const variance = lineWidths.reduce((sum, width) => sum + (width - avgWidth) ** 2, 0) / lineWidths.length;
+        score += Math.sqrt(variance) / 18;
+      }
+
+      score += sparseLineCount * 0.6;
+
       return score;
     }
 
     function optimizeAboutTextLayout() {
       prepareAboutTextForAnalysis();
 
-      const widthCandidates = [48, 50, 52, 54, 56];
-      let bestWidth = 52;
-      let bestScore = Number.POSITIVE_INFINITY;
+      const compactViewport = window.innerWidth <= 900;
+      const widthCandidates = compactViewport
+        ? [42, 44, 46, 48, 50, 52, 54]
+        : [46, 48, 50, 52, 54, 56, 58, 60];
+      const wordSpacingCandidates = [-0.025, -0.015, 0, 0.012, 0.022, 0.032];
+      const letterSpacingCandidates = [-0.01, -0.005, 0, 0.004];
+      let best = {
+        width: compactViewport ? 48 : 52,
+        wordSpacing: 0,
+        letterSpacing: 0,
+        score: Number.POSITIVE_INFINITY
+      };
 
-      widthCandidates.forEach((candidate) => {
-        aboutText.style.width = `min(78vw, ${candidate}ch)`;
-        const score = calculateRiverScore();
-        if (score < bestScore) {
-          bestScore = score;
-          bestWidth = candidate;
-        }
+      widthCandidates.forEach((width) => {
+        aboutText.style.width = compactViewport ? `min(92vw, ${width}ch)` : `min(78vw, ${width}ch)`;
+
+        wordSpacingCandidates.forEach((wordSpacing) => {
+          aboutText.style.wordSpacing = `${wordSpacing}em`;
+
+          letterSpacingCandidates.forEach((letterSpacing) => {
+            aboutText.style.letterSpacing = `${letterSpacing}em`;
+            const riverScore = calculateRiverScore();
+            const spacingPenalty = Math.abs(wordSpacing) * 10 + Math.abs(letterSpacing) * 24;
+            const totalScore = riverScore + spacingPenalty;
+
+            if (totalScore < best.score) {
+              best = {
+                width,
+                wordSpacing,
+                letterSpacing,
+                score: totalScore
+              };
+            }
+          });
+        });
       });
 
-      aboutText.style.width = `min(78vw, ${bestWidth}ch)`;
+      aboutText.style.width = compactViewport ? `min(92vw, ${best.width}ch)` : `min(78vw, ${best.width}ch)`;
+      aboutText.style.wordSpacing = `${best.wordSpacing}em`;
+      aboutText.style.letterSpacing = `${best.letterSpacing}em`;
     }
 
     function switchDetailOnHover(imageElement) {
@@ -988,7 +1027,7 @@
       }
 
       const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
-      if (detailImage.alt === fileName) {
+      if (detailOverlayImage.alt === fileName) {
         return;
       }
 
