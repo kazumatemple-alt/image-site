@@ -7,6 +7,24 @@ const PORT = Number(process.env.PORT) || 3000;
 const ROOT = __dirname;
 const IMAGES_DIR = path.join(ROOT, 'images');
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.avif']);
+const TRACKING_PARAMS = new Set([
+  'fbclid',
+  'gclid',
+  'msclkid',
+  'ttclid',
+  'twclid',
+  'wbraid',
+  'gbraid'
+]);
+
+function hasTrackingParams(searchParams) {
+  for (const key of searchParams.keys()) {
+    if (key.toLowerCase().startsWith('utm_') || TRACKING_PARAMS.has(key.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -75,6 +93,15 @@ function listImages(callback) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if ((url.pathname === '/' || url.pathname === '/index.html') && hasTrackingParams(url.searchParams)) {
+    res.writeHead(301, {
+      Location: '/',
+      'Cache-Control': 'no-store'
+    });
+    res.end();
+    return;
+  }
 
   if (url.pathname === '/api/images') {
     listImages((err, files) => {
