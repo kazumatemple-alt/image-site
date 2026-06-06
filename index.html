@@ -124,6 +124,7 @@
     }
     #contactButton {
       cursor: pointer;
+      margin-top: 2.2em;
     }
     #contactButton.is-locked {
       cursor: default;
@@ -365,6 +366,41 @@
       opacity: 1;
       pointer-events: auto;
     }
+    .detail-overlay {
+      width: min(88vw, 760px);
+      text-align: left;
+      text-justify: auto;
+      hyphens: manual;
+      -webkit-hyphens: manual;
+      padding-right: 0;
+    }
+    .detail-overlay-media {
+      width: 100%;
+      height: min(68vh, 680px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .detail-overlay-image {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .detail-overlay-title {
+      margin: 0 0 4px;
+      font-style: italic;
+      font-weight: 600;
+      line-height: 1.1;
+    }
+    .detail-overlay-description {
+      margin: 0;
+      line-height: 1.28;
+      white-space: pre-line;
+    }
     .detail-image-wrap {
       width: 100%;
       height: var(--detail-image-height);
@@ -565,9 +601,6 @@
       .topbar-right {
         gap: 14px;
       }
-      .topbar-name {
-        display: none;
-      }
       .topbar-right {
         flex-direction: column;
         align-items: flex-end;
@@ -603,6 +636,15 @@
       .loading-indicator {
         font-size: 8pt;
       }
+      #contactButton {
+        margin-top: 2em;
+      }
+      .detail-overlay {
+        width: min(92vw, 560px);
+      }
+      .detail-overlay-media {
+        height: min(50vh, 360px);
+      }
     }
     @media (max-width: 600px) {
       .topbar {
@@ -626,6 +668,9 @@
       }
       .about-text {
         top: 52%;
+      }
+      #contactButton {
+        margin-top: 2.4em;
       }
     }
   </style>
@@ -682,6 +727,17 @@
     </div>
   </section>
 
+  <section id="detailOverlay" class="about-text detail-overlay" aria-live="polite" aria-label="Artwork detail" lang="en">
+    <button id="detailCloseButton" class="about-close" aria-label="Close artwork detail">×</button>
+    <div class="detail-overlay-media">
+      <img id="detailOverlayImage" class="detail-overlay-image" alt="Artwork detail image" />
+    </div>
+    <div class="detail-overlay-caption">
+      <p id="detailOverlayTitle" class="detail-overlay-title"></p>
+      <p id="detailOverlayDescription" class="detail-overlay-description"></p>
+    </div>
+  </section>
+
   <aside id="detailPanel" class="detail-panel" aria-live="polite">
     <div class="detail-image-wrap">
       <img id="detailImage" class="detail-image" alt="作品画像" />
@@ -706,6 +762,11 @@
     const cvText = document.getElementById('cvText');
     const cvCloseButton = document.getElementById('cvCloseButton');
     const cvButton = document.getElementById('cvButton');
+    const detailOverlay = document.getElementById('detailOverlay');
+    const detailCloseButton = document.getElementById('detailCloseButton');
+    const detailOverlayImage = document.getElementById('detailOverlayImage');
+    const detailOverlayTitle = document.getElementById('detailOverlayTitle');
+    const detailOverlayDescription = document.getElementById('detailOverlayDescription');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const contactPanel = document.getElementById('contactPanel');
     const contactButton = document.getElementById('contactButton');
@@ -802,74 +863,15 @@
     }
 
     function openDetail(imageElement) {
-      clearTimeout(aboutJoinedTimer);
-      clearTimeout(aboutFadeTimer);
-      clearTimeout(aboutClosedTimer);
-      clearTimeout(aboutTextTimer);
-      clearTimeout(aboutHideTimer);
-      app.classList.remove('is-about-prep', 'is-about-closing', 'is-about-joined', 'is-about-fading', 'is-about-closed');
-      app.classList.remove('is-returning-home');
-      aboutText.classList.remove('is-hiding');
-      aboutText.classList.remove('is-visible');
-      cvText.classList.remove('is-hiding');
-      cvText.classList.remove('is-visible');
-      activeOverlay = null;
-      topbar.classList.remove('is-about-hidden');
       const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
       const imageSrc = imageElement.getAttribute('src');
       const meta = getArtworkMeta(fileName);
 
-      detailImage.src = imageSrc;
-      detailImage.alt = fileName;
-      detailImageWrap.style.width = '';
-      detailImage.style.marginLeft = '';
-      detailImage.style.objectFit = '';
-      if (meta.detailSize && Number.isFinite(meta.detailSize.width) && Number.isFinite(meta.detailSize.height)) {
-        detailImage.style.width = `${meta.detailSize.width}px`;
-        detailImage.style.height = `${meta.detailSize.height}px`;
-      } else {
-        detailImage.style.width = '';
-        detailImage.style.height = '';
-      }
-
-      if (meta.trimX && Number.isFinite(meta.trimX) && meta.trimX > 0 && meta.detailSize) {
-        const trimX = meta.trimX;
-        detailImageWrap.style.width = `${meta.detailSize.width}px`;
-        detailImage.style.width = `${meta.detailSize.width + trimX * 2}px`;
-        detailImage.style.height = `${meta.detailSize.height}px`;
-        detailImage.style.marginLeft = `${-trimX}px`;
-        detailImage.style.objectFit = 'cover';
-      }
-      detailTitle.textContent = meta.title;
-      detailDescription.textContent = meta.description;
-
-      const compactViewport = isCompactViewport();
-      const needsPredictivePosition = !compactViewport && !app.classList.contains('is-shifted-left');
-      updateDetailPanelPosition({ predictShiftedColumn: needsPredictivePosition });
-      detailPanel.classList.remove('is-visible');
-
-      if (!compactViewport) {
-        app.classList.add('is-shifted-left');
-      }
-
-      app.classList.add('is-detail-open');
-
-      if (!needsPredictivePosition) {
-        detailPanel.classList.add('is-visible');
-        return;
-      }
-
-      const showPanelAfterShift = (event) => {
-        if (event.target !== app || event.propertyName !== 'transform') {
-          return;
-        }
-        app.removeEventListener('transitionend', showPanelAfterShift);
-        if (app.classList.contains('is-detail-open')) {
-          detailPanel.classList.add('is-visible');
-        }
-      };
-
-      app.addEventListener('transitionend', showPanelAfterShift);
+      detailOverlayImage.src = imageSrc;
+      detailOverlayImage.alt = fileName;
+      detailOverlayTitle.textContent = meta.title;
+      detailOverlayDescription.textContent = meta.description;
+      openOverlayEffect(detailOverlay);
     }
 
     function prepareAboutTextForAnalysis() {
@@ -981,7 +983,7 @@
     }
 
     function switchDetailOnHover(imageElement) {
-      if (!app.classList.contains('is-detail-open')) {
+      if (activeOverlay !== detailOverlay || !detailOverlay.classList.contains('is-visible')) {
         return;
       }
 
@@ -1109,6 +1111,8 @@
       aboutText.classList.remove('is-visible');
       cvText.classList.remove('is-hiding');
       cvText.classList.remove('is-visible');
+      detailOverlay.classList.remove('is-hiding');
+      detailOverlay.classList.remove('is-visible');
       topbar.classList.remove('is-about-hidden');
       if (optimizeAbout) {
         optimizeAboutTextLayout();
@@ -1381,11 +1385,20 @@
       closeOverlayEffect();
     });
 
+    detailCloseButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeOverlayEffect();
+    });
+
     aboutText.addEventListener('click', (event) => {
       event.stopPropagation();
     });
 
     cvText.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+
+    detailOverlay.addEventListener('click', (event) => {
       event.stopPropagation();
     });
 
@@ -1415,10 +1428,6 @@
       if (clickedImage) {
         openDetail(clickedImage);
         return;
-      }
-
-      if (app.classList.contains('is-detail-open')) {
-        closeDetail();
       }
     });
 
