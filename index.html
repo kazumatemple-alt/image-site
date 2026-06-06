@@ -620,6 +620,10 @@
         gap: 6pt;
         padding: 78px 0 20pt;
       }
+      .column.is-about-fading .image-card {
+        opacity: 0;
+        transition: opacity 600ms ease-in;
+      }
       .detail-panel {
         left: 50% !important;
         transform: translateX(-50%);
@@ -1112,6 +1116,51 @@
 
       // Only tighten spacing when the base layout still shows visible rivers.
       if (bestBaseScore < 2.6) {
+        return;
+      }
+
+      if (compactViewport) {
+        // Mobile-only extra pass: if rivers remain, tighten and try one-char narrower width.
+        const compactWidthCandidates = [
+          Math.max(42, bestWidth - 1),
+          bestWidth
+        ];
+        const tightenWordCandidates = [-0.022, -0.018, -0.014, -0.01, -0.006, 0];
+        const tightenLetterCandidates = [-0.008, -0.005, -0.003, 0];
+        let bestTightCompact = {
+          width: bestWidth,
+          wordSpacing: 0,
+          letterSpacing: 0,
+          score: bestBaseScore
+        };
+
+        compactWidthCandidates.forEach((width) => {
+          aboutText.style.width = `min(92vw, ${width}ch)`;
+
+          tightenWordCandidates.forEach((wordSpacing) => {
+            aboutText.style.wordSpacing = `${wordSpacing}em`;
+
+            tightenLetterCandidates.forEach((letterSpacing) => {
+              aboutText.style.letterSpacing = `${letterSpacing}em`;
+              const riverScore = calculateRiverScore();
+              const tightnessPenalty = Math.abs(wordSpacing) * 5 + Math.abs(letterSpacing) * 18;
+              const totalScore = riverScore + tightnessPenalty;
+
+              if (totalScore < bestTightCompact.score) {
+                bestTightCompact = {
+                  width,
+                  wordSpacing,
+                  letterSpacing,
+                  score: totalScore
+                };
+              }
+            });
+          });
+        });
+
+        aboutText.style.width = `min(92vw, ${bestTightCompact.width}ch)`;
+        aboutText.style.wordSpacing = `${bestTightCompact.wordSpacing}em`;
+        aboutText.style.letterSpacing = `${bestTightCompact.letterSpacing}em`;
         return;
       }
 
