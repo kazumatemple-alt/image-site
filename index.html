@@ -124,7 +124,7 @@
     }
     #contactButton {
       cursor: pointer;
-      margin-top: 2.2em;
+      margin-top: 0;
     }
     #contactButton.is-locked {
       cursor: default;
@@ -871,16 +871,115 @@
       detailPanel.style.left = `${clampedLeft}px`;
     }
 
+    function openDetailOverlayMobile() {
+      closeDetail();
+      clearTimeout(aboutJoinedTimer);
+      clearTimeout(aboutFadeTimer);
+      clearTimeout(aboutClosedTimer);
+      clearTimeout(aboutTextTimer);
+      clearTimeout(aboutHideTimer);
+      app.classList.remove('is-returning-home');
+      app.classList.remove('is-about-prep', 'is-about-closing', 'is-about-joined', 'is-about-closed');
+      app.classList.remove('is-about-fading');
+      aboutText.classList.remove('is-hiding', 'is-visible');
+      cvText.classList.remove('is-hiding', 'is-visible');
+      detailOverlay.classList.remove('is-hiding', 'is-visible');
+      topbar.classList.remove('is-about-hidden');
+      activeOverlay = detailOverlay;
+
+      requestAnimationFrame(() => {
+        if (activeOverlay !== detailOverlay) {
+          return;
+        }
+        app.classList.add('is-about-fading');
+        topbar.classList.add('is-about-hidden');
+
+        aboutClosedTimer = setTimeout(() => {
+          if (activeOverlay !== detailOverlay) {
+            return;
+          }
+          app.classList.add('is-about-closed');
+          detailOverlay.classList.add('is-visible');
+        }, 560);
+      });
+    }
+
     function openDetail(imageElement) {
       const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
       const imageSrc = imageElement.getAttribute('src');
       const meta = getArtworkMeta(fileName);
 
-      detailOverlayImage.src = imageSrc;
-      detailOverlayImage.alt = fileName;
-      detailOverlayTitle.textContent = meta.title;
-      detailOverlayDescription.textContent = meta.description;
-      openOverlayEffect(detailOverlay);
+      if (isCompactViewport()) {
+        detailOverlayImage.src = imageSrc;
+        detailOverlayImage.alt = fileName;
+        detailOverlayTitle.textContent = meta.title;
+        detailOverlayDescription.textContent = meta.description;
+        openDetailOverlayMobile();
+        return;
+      }
+
+      clearTimeout(aboutJoinedTimer);
+      clearTimeout(aboutFadeTimer);
+      clearTimeout(aboutClosedTimer);
+      clearTimeout(aboutTextTimer);
+      clearTimeout(aboutHideTimer);
+      app.classList.remove('is-about-prep', 'is-about-closing', 'is-about-joined', 'is-about-fading', 'is-about-closed');
+      app.classList.remove('is-returning-home');
+      aboutText.classList.remove('is-hiding');
+      aboutText.classList.remove('is-visible');
+      cvText.classList.remove('is-hiding');
+      cvText.classList.remove('is-visible');
+      detailOverlay.classList.remove('is-hiding');
+      detailOverlay.classList.remove('is-visible');
+      activeOverlay = null;
+      topbar.classList.remove('is-about-hidden');
+
+      detailImage.src = imageSrc;
+      detailImage.alt = fileName;
+      detailImageWrap.style.width = '';
+      detailImage.style.marginLeft = '';
+      detailImage.style.objectFit = '';
+      if (meta.detailSize && Number.isFinite(meta.detailSize.width) && Number.isFinite(meta.detailSize.height)) {
+        detailImage.style.width = `${meta.detailSize.width}px`;
+        detailImage.style.height = `${meta.detailSize.height}px`;
+      } else {
+        detailImage.style.width = '';
+        detailImage.style.height = '';
+      }
+
+      if (meta.trimX && Number.isFinite(meta.trimX) && meta.trimX > 0 && meta.detailSize) {
+        const trimX = meta.trimX;
+        detailImageWrap.style.width = `${meta.detailSize.width}px`;
+        detailImage.style.width = `${meta.detailSize.width + trimX * 2}px`;
+        detailImage.style.height = `${meta.detailSize.height}px`;
+        detailImage.style.marginLeft = `${-trimX}px`;
+        detailImage.style.objectFit = 'cover';
+      }
+      detailTitle.textContent = meta.title;
+      detailDescription.textContent = meta.description;
+
+      const needsPredictivePosition = !app.classList.contains('is-shifted-left');
+      updateDetailPanelPosition({ predictShiftedColumn: needsPredictivePosition });
+      detailPanel.classList.remove('is-visible');
+      app.classList.add('is-shifted-left');
+      app.classList.add('is-detail-open');
+
+      if (!needsPredictivePosition) {
+        detailPanel.classList.add('is-visible');
+        return;
+      }
+
+      const showPanelAfterShift = (event) => {
+        if (event.target !== app || event.propertyName !== 'transform') {
+          return;
+        }
+        app.removeEventListener('transitionend', showPanelAfterShift);
+        if (app.classList.contains('is-detail-open')) {
+          detailPanel.classList.add('is-visible');
+        }
+      };
+
+      app.addEventListener('transitionend', showPanelAfterShift);
     }
 
     function prepareAboutTextForAnalysis() {
@@ -1048,12 +1147,12 @@
     }
 
     function switchDetailOnHover(imageElement) {
-      if (activeOverlay !== detailOverlay || !detailOverlay.classList.contains('is-visible')) {
+      if (!app.classList.contains('is-detail-open')) {
         return;
       }
 
       const fileName = imageElement.dataset.file || imageElement.getAttribute('alt') || '';
-      if (detailOverlayImage.alt === fileName) {
+      if (detailImage.alt === fileName) {
         return;
       }
 
@@ -1493,6 +1592,10 @@
       if (clickedImage) {
         openDetail(clickedImage);
         return;
+      }
+
+      if (app.classList.contains('is-detail-open')) {
+        closeDetail();
       }
     });
 
